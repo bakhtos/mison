@@ -13,8 +13,9 @@ from git import Repo, NULL_TREE
 from pydriller import Repository
 import requests
 
-__all__ = ['pydriller_mine_commits', 'github_mine_commits', 'Commit', 'ModifiedFile',
-           'CommitJSONEncoder', 'CommitJSONDecoder', 'CommitMiner', 'GitMiner']
+__all__ = ['github_mine_commits', 'Commit', 'ModifiedFile',
+           'CommitJSONEncoder', 'CommitJSONDecoder', 'CommitMiner', 'GitMiner',
+           'PydrillerMiner']
 
 
 class ModificationType(Enum):
@@ -242,31 +243,36 @@ class GitMiner(CommitMiner):
         return commits
 
 
-def pydriller_mine_commits(repo, **kwargs) -> List[Commit]:
-    """
-    Mining git repository commits and file modifications with PyDriller library
-    :param repo: str, path to the repository folder (can be online, will be temporarily cloned)
-    :param kwargs: kwargs for pydriller.Repository (filters, commits range)
-    :return: pandas DataFrame with all mined commits and file modifications
-    """
+class PydrillerMiner(CommitMiner):
+    """Commit miner using the Pydriller library as backend"""
 
-    pydriller_kwargs = {k: v for k, v in kwargs.items() if v is not None}
-    data = []
+    def __init__(self, repo: str, **kwargs):
+        """Mining git repository commits and file modifications with Pydriller library
 
-    for commit in Repository(repo, **pydriller_kwargs).traverse_commits():
-        modified_files = []
-        print(f"Processing {commit.hash}")
-        for file in commit.modified_files:
-            new_path = None if file.new_path is None else f"{commit.project_name}/{Path(file.new_path).as_posix()}"
-            old_path = None if file.old_path is None else f"{commit.project_name}/{Path(file.old_path).as_posix()}"
-            modified_files.append(ModifiedFile(new_path=new_path, old_path=old_path,
-                                               modification_type=file.change_type, deletions=file.deleted_lines,
-                                               additions=file.added_lines))
-        data.append(Commit(sha=commit.hash, author_name=commit.author.name, author_email=commit.author.email.lower(),
-                           committer_name=commit.committer.name, committer_email=commit.committer.email.lower(),
-                           commit_date=commit.committer_date, modified_files=modified_files))
+        :param repo: str, Path to the repository (can be online, will be temporarily cloned)
+        :param kwargs: kwargs for pydriller.Repository (filters, commits range)
+        """
 
-    return data
+        super().__init__(repo)
+        self._pydriller_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
+    def mine_commits(self) -> List[Commit]:
+        data = []
+
+        for commit in Repository(self._repo, **self._pydriller_kwargs).traverse_commits():
+            modified_files = []
+            print(f"Processing {commit.hash}")
+            for file in commit.modified_files:
+                new_path = None if file.new_path is None else f"{commit.project_name}/{Path(file.new_path).as_posix()}"
+                old_path = None if file.old_path is None else f"{commit.project_name}/{Path(file.old_path).as_posix()}"
+                modified_files.append(ModifiedFile(new_path=new_path, old_path=old_path,
+                                                   modification_type=file.change_type, deletions=file.deleted_lines,
+                                                   additions=file.added_lines))
+            data.append(Commit(sha=commit.hash, author_name=commit.author.name, author_email=commit.author.email.lower(),
+                               committer_name=commit.committer.name, committer_email=commit.committer.email.lower(),
+                               commit_date=commit.committer_date, modified_files=modified_files))
+
+        return data
 
 
 def github_mine_commits(repo: str, github_token=None, per_page=100) -> List[Commit]:
