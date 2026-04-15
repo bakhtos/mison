@@ -9,7 +9,6 @@ This way, we can discuss what you are trying to add and whether it makes sense f
 # Branches of the repository
 
 - `main` branch is always set to **most recent published release**
-  - Wiki should correspond to the state of the code on this branch
 - `dev` branch represents the most recent updates
   - New contributions and submitted Pull Requests should be based on this branch
   - Eventually, contents of this branch are published as a released and `main` is fast-forwarded
