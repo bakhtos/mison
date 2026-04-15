@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from enum import Enum
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass
@@ -9,20 +8,11 @@ from collections import deque
 import subprocess
 
 from git import Repo, NULL_TREE
-from pydriller import Repository
+from pydriller import Repository, ModificationType
 import requests
 
 __all__ = ['Commit', 'ModifiedFile', 'CommitJSONEncoder', 'CommitJSONDecoder',
            'CommitMiner', 'GitMiner', 'PydrillerMiner', 'GithubMiner']
-
-
-class ModificationType(Enum):
-    ADD = 1
-    COPY = 2
-    RENAME = 3
-    DELETE = 4
-    MODIFY = 5
-    UNKNOWN = 6
 
 
 @dataclass
