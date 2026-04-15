@@ -1,4 +1,4 @@
-from .miner import git_mine_commits, pydriller_mine_commits, github_mine_commits, CommitJSONEncoder, CommitJSONDecoder
+from .miner import GitMiner, GithubMiner, PydrillerMiner, CommitJSONEncoder, CommitJSONDecoder
 from .networks import DevFileMapping, DevComponentMapping
 from .networks.collaboration import CountCollaboration, CosineCollaboration
 from .networks.coupling import OrganizationalCoupling, LogicalCoupling
@@ -42,11 +42,12 @@ def main_commit(args):
                             'filepath': args.filepath,
                             'only_modifications_with_file_types': args.only_modifications_with_file_types
                             }
-        data = pydriller_mine_commits(repo=args.repo, **pydriller_kwargs)
+        miner = PydrillerMiner(args.repo, **pydriller_kwargs)
     elif args.backend == 'github':
-        data = github_mine_commits(repo=args.repo, github_token=args.github_token, per_page=args.per_page)
+        miner = GithubMiner(repo=args.repo, github_token=args.github_token, per_page=args.per_page)
     elif args.backend == 'git':
-        data = git_mine_commits(repo=args.repo, start_commit=args.start_commit, skip_merge_commits=args.keep_merge_commits)
+        miner = GitMiner(repo=args.repo, start_commit=args.start_commit, skip_merge_commits=args.keep_merge_commits)
+    data = miner.mine_commits()
     with open(args.commit_json, 'w') as f:
         json.dump(data, f, cls=CommitJSONEncoder, indent=4)
 
