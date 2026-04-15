@@ -1,4 +1,3 @@
-import os
 from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
@@ -13,9 +12,8 @@ from git import Repo, NULL_TREE
 from pydriller import Repository
 import requests
 
-__all__ = ['github_mine_commits', 'Commit', 'ModifiedFile',
-           'CommitJSONEncoder', 'CommitJSONDecoder', 'CommitMiner', 'GitMiner',
-           'PydrillerMiner']
+__all__ = ['Commit', 'ModifiedFile', 'CommitJSONEncoder', 'CommitJSONDecoder',
+           'CommitMiner', 'GitMiner', 'PydrillerMiner', 'GithubMiner']
 
 
 class ModificationType(Enum):
@@ -275,91 +273,90 @@ class PydrillerMiner(CommitMiner):
         return data
 
 
-def github_mine_commits(repo: str, github_token=None, per_page=100) -> List[Commit]:
-    """
-    Mining git repository commits and file modifications with GitHub API.
-    :param repo: str, address of the repository on GitHub
-    :param github_token: str, the GitHub API token to use for API access; if None, will try to get GITHUB_TOKEN env
-    :param per_page: (optional) amount of commits to return per page, passed to the GitHub API request
-    :return: pandas DataFrame with all mined commits and file modifications
-    :raise ValueError: if the GitHub API is not provided neither as parameter not environment variable
-    """
+class GithubMiner(CommitMiner):
+    """Commit miner using GitHub API to mine from remote GitHub repository."""
+    def __init__(self, repo: str, github_token: str, per_page: int = 100):
+        """ Mining git repository commits and file modifications with GitHub API.
 
-    if github_token is None:
-        github_token = os.getenv('GITHUB_TOKEN')
-        if github_token is None:
-            raise ValueError("GitHub token needs to be provided either as a function/cli argument or in env. var. GITHUB_TOKEN")
+        :param repo: str, Full URL of the GitHub repository
+        :param github_token: str, GitHub API token
+        :param per_page: int, Number of commits to return per page, passed to the GitHub API request (optional, default 100)
+        """
+        super().__init__(repo)
+        self._github_token = github_token
+        self._per_page = per_page
+        owner_repo = repo.removeprefix('https://github.com/')
+        self._owner, self._repo_name = owner_repo.split('/')
 
-    repo = repo.removeprefix('https://github.com/')
-    owner, repo = repo.split("/")
-    project_commits_query = f"https://api.github.com/repos/{owner}/{repo}/commits"
-    headers = {'Authorization': f'token {github_token}'}
-    params = {'per_page': per_page}
+    def mine_commits(self) -> List[Commit]:
+        project_commits_query = f"https://api.github.com/repos/{self._owner}/{self._repo_name}/commits"
+        headers = {'Authorization': f'token {self._github_token}'}
+        params = {'per_page': self._per_page}
 
-    commits_data = []
-    page = 1
+        commits_data = []
+        page = 1
 
-    while True:
-        params['page'] = page
-        response = requests.get(project_commits_query, headers=headers, params=params)
-        project_commits_data: list[dict] = response.json()
+        while True:
+            params['page'] = page
+            response = requests.get(project_commits_query, headers=headers, params=params)
+            project_commits_data: list[dict] = response.json()
 
-        if not project_commits_data:
-            break
+            if not project_commits_data:
+                break
 
-        for item in project_commits_data:
-            commit_sha = item['sha']
-            print(f"Processing {commit_sha}")
-            author_name: str = item.get('commit', {}).get('author', {}).get('name', None)
-            author_email: str = item.get('commit', {}).get('author', {}).get('email', None)
-            committer_name: str = item.get('commit', {}).get('committer', {}).get('name', None)
-            committer_email: str = item.get('commit', {}).get('committer', {}).get('email', None)
-            commit_date: str = item.get('commit', {}).get('committer', {}).get('date', None)
+            for item in project_commits_data:
+                commit_sha = item['sha']
+                print(f"Processing {commit_sha}")
+                author_name: str = item.get('commit', {}).get('author', {}).get('name', None)
+                author_email: str = item.get('commit', {}).get('author', {}).get('email', None)
+                committer_name: str = item.get('commit', {}).get('committer', {}).get('name', None)
+                committer_email: str = item.get('commit', {}).get('committer', {}).get('email', None)
+                commit_date: str = item.get('commit', {}).get('committer', {}).get('date', None)
 
-            if commit_date:
-                commit_date: datetime = datetime.fromisoformat(commit_date.replace("Z", "+00:00"))
+                if commit_date:
+                    commit_date: datetime = datetime.fromisoformat(commit_date.replace("Z", "+00:00"))
 
-            # Fetch detailed commit changes
-            commit_changes_query = f"{project_commits_query}/{commit_sha}"
-            commit_changes_response = requests.get(commit_changes_query, headers=headers)
-            commit_changes_data = commit_changes_response.json()
+                # Fetch detailed commit changes
+                commit_changes_query = f"{project_commits_query}/{commit_sha}"
+                commit_changes_response = requests.get(commit_changes_query, headers=headers)
+                commit_changes_data = commit_changes_response.json()
 
-            modified_files = []
-            for file in commit_changes_data.get("files", []):
-                status = file.get("status")
-                match status:
-                    case "added":
-                        status = ModificationType.ADD
-                    case "removed":
-                        status = ModificationType.DELETE
-                        # Compatibility with PyDriller
-                        file["previous_filename"] = file.get("filename")
-                        file["filename"] = None
-                    case "modified":
-                        status = ModificationType.MODIFY
-                    case "renamed":
-                        status = ModificationType.RENAME
-                    case "copied":
-                        status = ModificationType.COPY
-                    case _:
-                        status = ModificationType.UNKNOWN
+                modified_files = []
+                for file in commit_changes_data.get("files", []):
+                    status = file.get("status")
+                    match status:
+                        case "added":
+                            status = ModificationType.ADD
+                        case "removed":
+                            status = ModificationType.DELETE
+                            # Compatibility with PyDriller
+                            file["previous_filename"] = file.get("filename")
+                            file["filename"] = None
+                        case "modified":
+                            status = ModificationType.MODIFY
+                        case "renamed":
+                            status = ModificationType.RENAME
+                        case "copied":
+                            status = ModificationType.COPY
+                        case _:
+                            status = ModificationType.UNKNOWN
 
-                new_path = f"{repo}/{file.get('filename')}"
-                old_path = None if file.get("previous_filename", None) is None else f"{repo}/{file.get('previous_filename')}"
-                modified_files.append(
-                    ModifiedFile(new_path=new_path, old_path=old_path,
-                                 modification_type=status, additions=file.get("additions", 0),
-                                 deletions=file.get("deletions", 0)))
-            commit_entry = Commit(
-                sha=commit_sha,
-                author_name=author_name,
-                author_email=author_email,
-                committer_name=committer_name,
-                committer_email=committer_email,
-                commit_date=commit_date,
-                modified_files=modified_files)
-            commits_data.append(commit_entry)
+                    new_path = f"{self._repo_name}/{file.get('filename')}"
+                    old_path = None if file.get("previous_filename", None) is None else f"{self._repo_name}/{file.get('previous_filename')}"
+                    modified_files.append(
+                        ModifiedFile(new_path=new_path, old_path=old_path,
+                                     modification_type=status, additions=file.get("additions", 0),
+                                     deletions=file.get("deletions", 0)))
+                commit_entry = Commit(
+                    sha=commit_sha,
+                    author_name=author_name,
+                    author_email=author_email,
+                    committer_name=committer_name,
+                    committer_email=committer_email,
+                    commit_date=commit_date,
+                    modified_files=modified_files)
+                commits_data.append(commit_entry)
 
-        page += 1
+            page += 1
 
-    return commits_data
+        return commits_data
