@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mison"
-version = "1.4.0"
+version = "1.5.0"
 authors = [
     {name = "Alexander Bakhtin", email = "alexander.bakhtin@protonmail.com"}]
 description = "MIcroService Organisational Network mining"
@@ -37,4 +37,4 @@ dependencies = [
 mison = "mison.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/M3SOulu/mison"
+Homepage = "https://github.com/bakhtos/mison"
