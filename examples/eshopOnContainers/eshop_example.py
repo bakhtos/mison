@@ -1,13 +1,14 @@
 import json
 
 
-## Mine commits corresponding to v3.0.0 of eShopOnContainers
-# from mison.miner import pydriller_mine_commits, CommitJSONEncoder
+# # Mine commits corresponding to v3.0.0 of eShopOnContainers
+# from mison.miner import PydrillerMiner, CommitJSONEncoder
 # import datetime
 #
-# data = pydriller_mine_commits(repo="https://github.com/M3SOulu/ECSA2024-eShopOnContainers",
+# miner = PydrillerMiner(repo="https://github.com/M3SOulu/ECSA2024-eShopOnContainers",
 #                               to=datetime.datetime.fromisoformat("2019-11-26"),
 #                               since=datetime.datetime.fromisoformat("2019-03-21"))
+# data = miner.mine_commits()
 # with open("eshop_commits_3.0.0.json", 'w') as f:
 #     json.dump(data, f, cls=CommitJSONEncoder, indent=4)
 
